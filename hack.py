@@ -12,7 +12,7 @@ data = {
     {
       "resource": {
         "resourceType": "Patient",
-        "id": "p-101",
+        "id": "",
         "name": [{"text": "Mrs. Gupta"}],
         "gender": "female",
         "age": 65
@@ -83,6 +83,8 @@ med = data["entry"][3]["resource"]
 patient_name = patient["name"][0]["text"]
 gender = patient["gender"].capitalize()
 age = patient["age"]
+# default patient id from the provided data; will be overriden by user input
+patient_id_default = patient.get("id", "")
 
 diagnosis = condition["code"]["coding"][0]["display"]
 bp_value = bp["valueQuantity"]["value"]
@@ -95,8 +97,14 @@ med_instruction = med["dosageInstruction"][0]["text"]
 
 def build_prescription_text():
   """Return the prescription text (do not write to disk)."""
+  # use the user-entered Patient ID if available (the GUI sets `patient_id_var`)
+  try:
+    pid = patient_id_var.get().strip() if "patient_id_var" in globals() else patient_id_default
+  except Exception:
+    pid = patient_id_default
 
   text = f"""
+Patient ID    : {pid}
 Patient Name  : {patient_name}
 Age           : {age}
 Gender        : {gender}
@@ -166,11 +174,17 @@ def open_review_window():
   def save_txt():
     edited = text_widget.get("1.0", "end").strip()
     # Let user choose location if desired
+    # default filename includes Patient ID if available
+    try:
+      pid = patient_id_var.get().strip()
+    except Exception:
+      pid = patient_id_default
+    default_name = f"{pid}_{filename_base}.txt" if pid else f"{filename_base}.txt"
     path = filedialog.asksaveasfilename(
       parent=review,
       title="Save Prescription as TXT",
       defaultextension=".txt",
-      initialfile=f"{filename_base}.txt",
+      initialfile=default_name,
       filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")],
     )
     if not path:
@@ -186,11 +200,16 @@ def open_review_window():
     edited = text_widget.get("1.0", "end").strip()
 
     # Choose PDF file path
+    try:
+      pid = patient_id_var.get().strip()
+    except Exception:
+      pid = patient_id_default
+    default_pdf = f"{pid}_{filename_base}.pdf" if pid else f"{filename_base}.pdf"
     pdf_path = filedialog.asksaveasfilename(
       parent=review,
       title="Save Prescription as PDF",
       defaultextension=".pdf",
-      initialfile=f"{filename_base}.pdf",
+      initialfile=default_pdf,
       filetypes=[("PDF Files", "*.pdf"), ("All Files", "*.*")],
     )
     if not pdf_path:
@@ -266,6 +285,37 @@ root.title("Mic Prescription App")
 root.geometry("1920x1080")
 root.resizable(False, False)
 
+# Patient ID variable (prefilled from data); center prompt shown initially
+patient_id_var = tk.StringVar(value=patient_id_default)
+
+# Centered Patient ID prompt (shown before mic)
+id_center_frame = tk.Frame(root)
+id_center_frame.place(relx=0.5, rely=0.38, anchor="center")
+
+tk.Label(id_center_frame, text="Enter Patient ID", font=("Segoe UI", 14, "bold")).pack(pady=(0,6))
+id_entry = tk.Entry(id_center_frame, textvariable=patient_id_var, font=("Segoe UI", 14), width=28)
+id_entry.pack(pady=(0,8))
+id_entry.focus_set()
+
+def confirm_patient_id(event=None):
+  pid = patient_id_var.get().strip()
+  if not pid:
+    messagebox.showwarning("Patient ID required", "Please enter Patient ID.")
+    return
+  # hide the ID prompt and show the mic area
+  try:
+    id_center_frame.place_forget()
+  except Exception:
+    pass
+  try:
+    mic_frame.place(relx=0.5, rely=0.5, anchor="center")
+  except Exception:
+    pass
+
+confirm_btn = tk.Button(id_center_frame, text="Confirm", command=confirm_patient_id, font=("Segoe UI", 12), bg="#0078D4", fg="white")
+confirm_btn.pack()
+id_entry.bind("<Return>", confirm_patient_id)
+
 listening = False
 
 # Animation state
@@ -276,6 +326,11 @@ wave_canvas = None
 def toggle():
   global listening, mic_animating
   if not listening:
+    # require a patient ID before starting
+    pid = patient_id_var.get().strip()
+    if not pid:
+      messagebox.showwarning("Patient ID required", "Please enter Patient ID before clicking the mic.")
+      return
     show_confirmation_window()
   else:
     listening = False
@@ -484,7 +539,6 @@ def animate_mic():
 
 
 mic_frame = tk.Frame(root)
-mic_frame.place(relx=0.5, rely=0.5, anchor="center")
 
 mic_button = tk.Button(
   mic_frame,
@@ -504,7 +558,7 @@ wave_canvas.pack(pady=(8, 0))
 
 status_label = tk.Label(
   mic_frame,
-  text="Click the mic",
+  text="Click on the mic icon to start recording.",
   font=("Segoe UI", 20),
 )
 status_label.pack(pady=10)
