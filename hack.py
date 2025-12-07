@@ -400,12 +400,45 @@ def after_understood():
 
 # --- Mic Waveform Animation ---
 import math
+def _draw_rounded_bar(canvas, x1, y1, x2, y2, fill):
+  """Draw a vertical pill-shaped (rounded) bar on `canvas` between (x1,y1)-(x2,y2).
+
+  This draws a center rectangle plus top/bottom ovals to create curved edges.
+  """
+  w = x2 - x1
+  h = y2 - y1
+  # radius limited by half width and half height
+  r = min(w / 2.0, h / 2.0)
+
+  # central rectangle (may be zero-height if bar is very short)
+  cy1 = y1 + r
+  cy2 = y2 - r
+  if cy2 > cy1:
+    canvas.create_rectangle(x1, cy1, x2, cy2, fill=fill, outline=fill)
+
+  # top cap
+  canvas.create_oval(x1, y1, x1 + 2 * r, y1 + 2 * r, fill=fill, outline=fill)
+  # bottom cap
+  canvas.create_oval(x2 - 2 * r, y2 - 2 * r, x2, y2, fill=fill, outline=fill)
+
+
 def animate_mic():
   """Draw a simple animated waveform on `wave_canvas` while `mic_animating` is True.
 
-  This replaces the previous color-pulse animation with a bar-waveform visualization.
+  Uses pill-shaped bars to produce curved edges instead of square rectangles.
   """
-  global mic_anim_step
+  global mic_anim_step, mic_prev_heights
+  # animation smoothing parameters
+  # alpha: smoothing factor for exponential smoothing (0..1). Lower => smoother/slower
+  SMOOTH_ALPHA = 0.28
+  # target frame delay to approximate 120 FPS; integer ms resolution means this is approximate
+  FPS_DELAY_MS = int(round(1000.0 / 120.0))  # ~120 FPS (≈8 ms)
+  # ensure previous heights buffer exists and matches bar count
+  try:
+    if mic_prev_heights is None or len(mic_prev_heights) != 22:
+      mic_prev_heights = [0.0] * 22
+  except NameError:
+    mic_prev_heights = [0.0] * 22
   if not mic_animating:
     mic_button.config(bg="white")
     try:
@@ -424,8 +457,8 @@ def animate_mic():
   wave_canvas.delete("all")
 
   bars = 22
-  bar_w = max(2, int(w / (bars * 1.8)))
-  spacing = max(2, int((w - bars * bar_w) / (bars + 1)))
+  bar_w = max(2, (w / (bars * 1.8)))
+  spacing = max(2, (w - bars * bar_w) / (bars + 1))
 
   mic_anim_step = (mic_anim_step + 1) % 100000
 
@@ -434,15 +467,20 @@ def animate_mic():
     phase = mic_anim_step * 0.12 + i * 0.45
     amp = (math.sin(phase) + 1) / 2  # 0..1
     # Vary amplitude slightly per bar for a natural look
-    height = amp * h * (0.25 + 0.75 * abs(math.sin(mic_anim_step * 0.02 + i)))
+    target_height = amp * h * (0.25 + 0.75 * abs(math.sin(mic_anim_step * 0.02 + i)))
+    # smooth the height using exponential smoothing
+    prev_h = mic_prev_heights[i]
+    height = prev_h + (target_height - prev_h) * SMOOTH_ALPHA
+    mic_prev_heights[i] = height
     x = spacing + i * (bar_w + spacing)
     y1 = (h - height) / 2
     y2 = y1 + height
     # color using a fixed accent color
     color = "#2196F3"
-    wave_canvas.create_rectangle(x, y1, x + bar_w, y2, fill=color, outline=color)
-
-  root.after(30, animate_mic)
+    x2 = x + bar_w
+    # draw rounded (pill) bar instead of rectangle
+    _draw_rounded_bar(wave_canvas, x, y1, x2, y2, color)
+  root.after(FPS_DELAY_MS, animate_mic)
 
 
 mic_frame = tk.Frame(root)
