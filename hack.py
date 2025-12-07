@@ -97,9 +97,9 @@ def build_prescription_text():
   """Return the prescription text (do not write to disk)."""
 
   text = f"""
-Patient Name : {patient_name}
-Age          : {age}
-Gender       : {gender}
+Patient Name  : {patient_name}
+Age           : {age}
+Gender        : {gender}
 
 ---------------------------------------------
 Diagnosis:
@@ -118,6 +118,9 @@ Advice:
 - Avoid sudden standing/sitting
 - Follow-up if symptoms persist
 
+---------------------------------------------
+Dr. Aditya Garg
+Registration No: 123456
 Generated on: {datetime.now().strftime("%d-%m-%Y %H:%M:%S")}
 ---------------------------------------------
     """
@@ -265,37 +268,108 @@ root.resizable(False, False)
 
 listening = False
 
-def toggle():
-    global listening
-    listening = not listening
+# Animation state
+mic_animating = False
+mic_anim_step = 0
 
-    if listening:
-        status_label.config(text="Listening...", fg="#0078D4")
-    else:
-        status_label.config(text="Understood!", fg="#28A745")
-        root.after(2000, after_understood)  # 2000 ms = 2 seconds
+def toggle():
+  global listening, mic_animating
+  if not listening:
+    show_confirmation_window()
+  else:
+    listening = False
+    status_label.config(text="Understood!", fg="#28A745")
+    mic_animating = False
+    mic_button.config(bg="white")
+    root.after(2000, after_understood)  # 2000 ms = 2 seconds
+# --- Confirmation Window ---
+def show_confirmation_window():
+  confirm = tk.Toplevel(root)
+  confirm.title("AI Consent & Rights")
+  confirm.geometry("1920x1080")
+  confirm.grab_set()
+
+  text = (
+    "I acknowledge that:\n\n"
+    "- My voice, text, or medical information may be temporarily processed by AI systems only for the purpose of clinical evaluation.\n"
+    "- My personal details will not be shared, sold, or used for commercial purposes.\n"
+    "- Only authorized medical staff will have access to the data.\n"
+    "- Reasonable safeguards are in place to protect my privacy and confidentiality.\n"
+    "- Data will be stored and handled according to hospital/clinic policy and applicable privacy laws.\n\n"
+    "I have the right to:\n\n"
+    "- Ask questions about how AI is being used\n"
+    "- Decline the use of AI for recording/analysis\n"
+    "- Request deletion of my AI-related data (as per hospital policy)\n"
+    "- Opt out at any time without affecting my care\n"
+  )
+
+  tk.Label(confirm, text="Consent & Rights", font=("Segoe UI", 16, "bold"), pady=10).pack()
+  text_widget = tk.Text(confirm, wrap="word", font=("Segoe UI", 12), height=20, width=70)
+  text_widget.pack(padx=16, pady=8, fill="both", expand=True)
+  text_widget.insert("1.0", text)
+  text_widget.config(state="disabled")
+
+  btn_frame = tk.Frame(confirm)
+  btn_frame.pack(pady=12)
+
+  def accept():
+    global listening, mic_animating
+    listening = True
+    status_label.config(text="Listening...", fg="#0078D4")
+    mic_animating = True
+    animate_mic()
+    confirm.destroy()
+
+  def decline():
+    confirm.destroy()
+
+  tk.Button(btn_frame, text="Accept & Continue", command=accept, font=("Segoe UI", 12), bg="#28A745", fg="white", width=18).pack(side="left", padx=8)
+  tk.Button(btn_frame, text="Decline", command=decline, font=("Segoe UI", 12), bg="#DC3545", fg="white", width=10).pack(side="right", padx=8)
 
 def after_understood():
-  # Prepare review without auto-creating the TXT
   status_label.config(text="Please review the generated prescription.", fg="#28A745")
   open_review_window()
 
+# --- Mic Animation ---
+import math
+def animate_mic():
+    global mic_anim_step
+    if not mic_animating:
+        mic_button.config(bg="white")
+        return
+    # Smoother pulse using sine wave interpolation between two colors
+    # Color1: #E3F2FD (227,242,253), Color2: #2196F3 (33,150,243)
+    steps = 40
+    mic_anim_step = (mic_anim_step + 1) % steps
+    t = (math.sin(2 * math.pi * mic_anim_step / steps) + 1) / 2  # 0..1
+    def lerp(a, b, t):
+        return int(a + (b - a) * t)
+    r = lerp(227, 33, t)
+    g = lerp(242, 150, t)
+    b = lerp(253, 243, t)
+    color = f'#{r:02X}{g:02X}{b:02X}'
+    mic_button.config(bg=color)
+    root.after(30, animate_mic)
+
+
+mic_frame = tk.Frame(root)
+mic_frame.place(relx=0.5, rely=0.5, anchor="center")
 
 mic_button = tk.Button(
-    root,
-    text="🎤",
-    font=("Segoe UI Emoji", 55),
-    command=toggle,
-    relief="flat",
-    bg="white",
-    activebackground="white",
+  mic_frame,
+  text="🎤",
+  font=("Segoe UI Emoji", 55),
+  command=toggle,
+  relief="flat",
+  bg="white",
+  activebackground="white",
 )
-mic_button.pack(pady=20)
+mic_button.pack()
 
 status_label = tk.Label(
-    root,
-    text="Click the mic",
-    font=("Segoe UI", 20),
+  mic_frame,
+  text="Click the mic",
+  font=("Segoe UI", 20),
 )
 status_label.pack(pady=10)
 
