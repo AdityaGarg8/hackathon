@@ -271,6 +271,7 @@ listening = False
 # Animation state
 mic_animating = False
 mic_anim_step = 0
+wave_canvas = None
 
 def toggle():
   global listening, mic_animating
@@ -289,7 +290,9 @@ def show_confirmation_window():
   confirm.geometry("1920x1080")
   confirm.grab_set()
 
-  text = (
+
+  # English and Hindi consent text
+  consent_text_en = (
     "I acknowledge that:\n\n"
     "- My voice, text, or medical information may be temporarily processed by AI systems only for the purpose of clinical evaluation.\n"
     "- My personal details will not be shared, sold, or used for commercial purposes.\n"
@@ -297,20 +300,80 @@ def show_confirmation_window():
     "- Reasonable safeguards are in place to protect my privacy and confidentiality.\n"
     "- Data will be stored and handled according to hospital/clinic policy and applicable privacy laws.\n\n"
     "I have the right to:\n\n"
-    "- Ask questions about how AI is being used\n"
-    "- Decline the use of AI for recording/analysis\n"
-    "- Request deletion of my AI-related data (as per hospital policy)\n"
-    "- Opt out at any time without affecting my care\n"
+    "- Ask questions about how AI is being used.\n"
+    "- Decline the use of AI for recording/analysis.\n"
+    "- Request deletion of my AI-related data (as per hospital policy).\n"
+    "- Opt out at any time without affecting my care.\n"
   )
 
-  tk.Label(confirm, text="Consent & Rights", font=("Segoe UI", 16, "bold"), pady=10).pack()
-  text_widget = tk.Text(confirm, wrap="word", font=("Segoe UI", 12), height=20, width=70)
-  text_widget.pack(padx=16, pady=8, fill="both", expand=True)
-  text_widget.insert("1.0", text)
-  text_widget.config(state="disabled")
+  consent_text_hi = (
+    "मैं स्वीकार करता/करती हूँ कि:\n\n"
+    "- मेरी आवाज़, पाठ, या चिकित्सा जानकारी केवल नैदानिक मूल्यांकन के उद्देश्य से अस्थायी रूप से AI सिस्टम द्वारा संसाधित की जा सकती है।\n"
+    "- मेरी व्यक्तिगत जानकारी साझा, बेची या व्यावसायिक प्रयोजनों के लिए उपयोग नहीं की जाएगी।\n"
+    "- केवल अधिकृत चिकित्सा कर्मचारी ही डेटा तक पहुँच सकते हैं।\n"
+    "- मेरी गोपनीयता और सुरक्षा के लिए उचित उपाय किए गए हैं।\n"
+    "- डेटा अस्पताल/क्लिनिक नीति और लागू गोपनीयता कानूनों के अनुसार संग्रहीत और संभाला जाएगा।\n\n"
+    "मुझे अधिकार है:\n\n"
+    "- AI के उपयोग के बारे में प्रश्न पूछने का।\n"
+    "- रिकॉर्डिंग/विश्लेषण के लिए AI के उपयोग से इनकार करने का।\n"
+    "- अपनी AI-संबंधित डेटा को हटाने का अनुरोध करने का (अस्पताल नीति के अनुसार)।\n"
+    "- किसी भी समय बाहर निकलने का, बिना देखभाल पर प्रभाव डाले।\n"
+  )
 
-  btn_frame = tk.Frame(confirm)
-  btn_frame.pack(pady=12)
+  # Language state
+  lang = {"current": "en"}
+
+  # Button text for both languages
+  btn_texts = {
+    "en": {"accept": "Accept & Continue", "decline": "Decline"},
+    "hi": {"accept": "स्वीकारें और आगे बढ़ें", "decline": "अस्वीकार करें"}
+  }
+
+  # title label (will be updated to selected language)
+  title_label = tk.Label(confirm, text="Consent & Rights", font=("Segoe UI", 16, "bold"), pady=10)
+  title_label.pack()
+
+  def update_text():
+    text_widget.config(state="normal")
+    text_widget.delete("1.0", "end")
+    if lang["current"] == "en":
+      text_widget.insert("1.0", consent_text_en)
+    else:
+      text_widget.insert("1.0", consent_text_hi)
+    text_widget.config(state="disabled")
+    # Update button text
+    accept_btn.config(text=btn_texts[lang["current"]]["accept"])
+    decline_btn.config(text=btn_texts[lang["current"]]["decline"])
+    # Update header/title according to selected language
+    if lang["current"] == "en":
+      title_label.config(text="Consent & Rights")
+    else:
+      title_label.config(text="सहमति और अधिकार")
+
+  text_widget = tk.Text(confirm, wrap="word", font=("Segoe UI", 12), height=20, width=70)
+  # Put the large editable text area above, and controls in a fixed bottom bar
+  text_widget.pack(fill="both", expand=True, padx=16, pady=8)
+
+  # Bottom bar frame to ensure controls are always visible
+  bottom_bar = tk.Frame(confirm)
+  bottom_bar.pack(side="bottom", fill="x", padx=16, pady=8)
+
+  # Language dropdown (left side of bottom bar)
+  lang_options = ["English", "हिन्दी"]
+  lang_map = {"English": "en", "हिन्दी": "hi"}
+  lang_var = tk.StringVar(value=lang_options[0])
+
+  def on_lang_select(event=None):
+    lang["current"] = lang_map[lang_var.get()]
+    update_text()
+
+  lang_dropdown = tk.OptionMenu(bottom_bar, lang_var, *lang_options, command=lambda _: on_lang_select())
+  lang_dropdown.config(font=("Segoe UI", 11), bg="#F7CA18", fg="black", width=14)
+  lang_dropdown.pack(side="left", padx=(0, 12))
+
+  # Button frame (right side of bottom bar)
+  btn_frame = tk.Frame(bottom_bar)
+  btn_frame.pack(side="right")
 
   def accept():
     global listening, mic_animating
@@ -323,33 +386,63 @@ def show_confirmation_window():
   def decline():
     confirm.destroy()
 
-  tk.Button(btn_frame, text="Accept & Continue", command=accept, font=("Segoe UI", 12), bg="#28A745", fg="white", width=18).pack(side="left", padx=8)
-  tk.Button(btn_frame, text="Decline", command=decline, font=("Segoe UI", 12), bg="#DC3545", fg="white", width=10).pack(side="right", padx=8)
+  accept_btn = tk.Button(btn_frame, text=btn_texts[lang["current"]]["accept"], command=accept, font=("Segoe UI", 12), bg="#28A745", fg="white", width=18)
+  decline_btn = tk.Button(btn_frame, text=btn_texts[lang["current"]]["decline"], command=decline, font=("Segoe UI", 12), bg="#DC3545", fg="white", width=10)
+  accept_btn.pack(side="left", padx=8)
+  decline_btn.pack(side="right", padx=8)
+
+  # Now update text and button labels after packing
+  update_text()
 
 def after_understood():
   status_label.config(text="Please review the generated prescription.", fg="#28A745")
   open_review_window()
 
-# --- Mic Animation ---
+# --- Mic Waveform Animation ---
 import math
 def animate_mic():
-    global mic_anim_step
-    if not mic_animating:
-        mic_button.config(bg="white")
-        return
-    # Smoother pulse using sine wave interpolation between two colors
-    # Color1: #E3F2FD (227,242,253), Color2: #2196F3 (33,150,243)
-    steps = 40
-    mic_anim_step = (mic_anim_step + 1) % steps
-    t = (math.sin(2 * math.pi * mic_anim_step / steps) + 1) / 2  # 0..1
-    def lerp(a, b, t):
-        return int(a + (b - a) * t)
-    r = lerp(227, 33, t)
-    g = lerp(242, 150, t)
-    b = lerp(253, 243, t)
-    color = f'#{r:02X}{g:02X}{b:02X}'
-    mic_button.config(bg=color)
-    root.after(30, animate_mic)
+  """Draw a simple animated waveform on `wave_canvas` while `mic_animating` is True.
+
+  This replaces the previous color-pulse animation with a bar-waveform visualization.
+  """
+  global mic_anim_step
+  if not mic_animating:
+    mic_button.config(bg="white")
+    try:
+      wave_canvas.delete("all")
+    except Exception:
+      pass
+    return
+
+  # Canvas dimensions
+  try:
+    w = wave_canvas.winfo_width()
+    h = wave_canvas.winfo_height()
+  except Exception:
+    w, h = 300, 60
+
+  wave_canvas.delete("all")
+
+  bars = 22
+  bar_w = max(2, int(w / (bars * 1.8)))
+  spacing = max(2, int((w - bars * bar_w) / (bars + 1)))
+
+  mic_anim_step = (mic_anim_step + 1) % 100000
+
+  for i in range(bars):
+    # each bar has a phase offset so the waveform moves
+    phase = mic_anim_step * 0.12 + i * 0.45
+    amp = (math.sin(phase) + 1) / 2  # 0..1
+    # Vary amplitude slightly per bar for a natural look
+    height = amp * h * (0.25 + 0.75 * abs(math.sin(mic_anim_step * 0.02 + i)))
+    x = spacing + i * (bar_w + spacing)
+    y1 = (h - height) / 2
+    y2 = y1 + height
+    # color using a fixed accent color
+    color = "#2196F3"
+    wave_canvas.create_rectangle(x, y1, x + bar_w, y2, fill=color, outline=color)
+
+  root.after(30, animate_mic)
 
 
 mic_frame = tk.Frame(root)
@@ -364,7 +457,12 @@ mic_button = tk.Button(
   bg="white",
   activebackground="white",
 )
-mic_button.pack()
+# Pack mic button above the waveform canvas so waveform appears below mic
+mic_button.pack(pady=6)
+
+# Waveform canvas (created once, used by animate_mic) - placed below mic and centered
+wave_canvas = tk.Canvas(mic_frame, width=360, height=72, highlightthickness=0)
+wave_canvas.pack(pady=(8, 0))
 
 status_label = tk.Label(
   mic_frame,
